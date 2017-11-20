@@ -1,0 +1,9 @@
+[package]
+name = "pong-midgar"
+version = "0.1.0"
+authors = ["Gabriel Martinez <reitaka@gmail.com>"]
+
+[dependencies]
+cgmath = "0.12"
+midgar = { git = "https://github.com/mystal/midgar-engine", branch = "dev" }
+rand = "0.3"
