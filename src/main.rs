@@ -1,5 +1,6 @@
 extern crate cgmath;
 extern crate midgar;
+extern crate rand;
 
 mod app;
 
