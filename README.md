@@ -9,3 +9,16 @@ tutorial](http://docs.godotengine.org/en/stable/learning/step_by_step/simple_2d_
 
 ## Usage
 `cargo run`
+
+## Controls
+**Player 1**
+
+`Z`: Move left
+
+`X`: Move right
+
+**Player 2**
+
+`Left`: Move left
+
+`Right`: Move right
