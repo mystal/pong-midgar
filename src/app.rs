@@ -47,8 +47,8 @@ impl midgar::App for GameApp {
             let texture = Rc::new(midgar.graphics().load_texture("assets/separator.png", true));
             TextureRegion::new(texture)
         };
-        let projection = cgmath::ortho(0.0, 640.0,
-                                       400.0, 0.0,
+        let projection = cgmath::ortho(0.0, SCREEN_SIZE.x,
+                                       SCREEN_SIZE.y, 0.0,
                                        -1.0, 1.0);
 
         GameApp {
@@ -77,6 +77,18 @@ impl midgar::App for GameApp {
         if midgar.input().was_key_pressed(KeyCode::Escape) {
             midgar.set_should_exit();
             return;
+        }
+
+        // Check if we should resize the screen
+        if midgar.input().was_key_pressed(KeyCode::Num1) {
+            let scale = 1;
+            midgar.graphics_mut().set_size(SCREEN_SIZE.x as u32 * scale, SCREEN_SIZE.y as u32 * scale);
+        } else if midgar.input().was_key_pressed(KeyCode::Num2) {
+            let scale = 2;
+            midgar.graphics_mut().set_size(SCREEN_SIZE.x as u32 * scale, SCREEN_SIZE.y as u32 * scale);
+        } else if midgar.input().was_key_pressed(KeyCode::Num3) {
+            let scale = 3;
+            midgar.graphics_mut().set_size(SCREEN_SIZE.x as u32 * scale, SCREEN_SIZE.y as u32 * scale);
         }
 
         let dt = midgar.time().delta_time() as f32;
