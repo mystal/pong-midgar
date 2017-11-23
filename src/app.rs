@@ -17,10 +17,36 @@ const INITIAL_BALL_SPEED: f32 = 80.0;
 // Paddle speed (pixels/second)
 const PADDLE_SPEED: f32 = 150.0;
 
+enum Players {
+    Player1,
+    Player2,
+}
+
+struct Player {
+    score: u8,
+    pos: Vector2<f32>,
+}
+
+impl Player {
+    fn new(pos: Vector2<f32>) -> Self {
+        Player {
+            score: 0,
+            pos,
+        }
+    }
+}
+
+struct Ball {
+    pos: Vector2<f32>,
+    direction: Vector2<f32>,
+    speed: f32,
+}
+
 pub struct GameApp {
-    player1: Paddle,
-    player2: Paddle,
+    player1: Player,
+    player2: Player,
     ball: Ball,
+    last_round_winner: Players,
 
     sprite: SpriteRenderer,
     left_tex: TextureRegion,
@@ -31,6 +57,7 @@ pub struct GameApp {
 
 impl midgar::App for GameApp {
     fn create(midgar: &Midgar) -> Self {
+        // Load textures
         let left_tex = {
             let texture = Rc::new(midgar.graphics().load_texture("assets/left_pallete.png", true));
             TextureRegion::new(texture)
@@ -47,22 +74,27 @@ impl midgar::App for GameApp {
             let texture = Rc::new(midgar.graphics().load_texture("assets/separator.png", true));
             TextureRegion::new(texture)
         };
+
         let projection = cgmath::ortho(0.0, SCREEN_SIZE.x,
                                        SCREEN_SIZE.y, 0.0,
                                        -1.0, 1.0);
 
+        // Randomize ball's starting direction
+        let ball_x_dir = if rand::random() {
+            1.0
+        } else {
+            -1.0
+        };
+
         GameApp {
-            player1: Paddle {
-                pos: cgmath::vec2(67.0, 200.0),
-            },
-            player2: Paddle {
-                pos: cgmath::vec2(577.0, 200.0),
-            },
+            player1: Player::new(cgmath::vec2(67.0, 200.0)),
+            player2: Player::new(cgmath::vec2(577.0, 200.0)),
             ball: Ball {
                 pos: cgmath::vec2(320.0, 200.0),
-                direction: cgmath::vec2(-1.0, 0.0),
+                direction: cgmath::vec2(ball_x_dir, 0.0),
                 speed: INITIAL_BALL_SPEED,
             },
+            last_round_winner: Players::Player1,
 
             sprite: SpriteRenderer::new(midgar.graphics().display(), projection),
             left_tex,
@@ -96,13 +128,13 @@ impl midgar::App for GameApp {
         // Integrate new ball position
         self.ball.pos += self.ball.direction * self.ball.speed * dt;
 
-        // Flip when touching roof or floor
+        // Flip ball when touching roof or floor
         if (self.ball.pos.y < 0.0 && self.ball.direction.y < 0.0) ||
            (self.ball.pos.y > SCREEN_SIZE.y && self.ball.direction.y > 0.0) {
             self.ball.direction.y = -self.ball.direction.y
         }
 
-        // Flip, change direction and increase speed when touching pads
+        // Flip, change direction, and increase speed when ball touches a paddle
         if (rect_has_point(self.player1.pos, self.left_tex.size().cast::<f32>(), self.ball.pos) && self.ball.direction.x < 0.0) ||
            (rect_has_point(self.player2.pos, self.right_tex.size().cast::<f32>(), self.ball.pos) && self.ball.direction.x > 0.0) {
             self.ball.direction.x = -self.ball.direction.x;
@@ -115,7 +147,16 @@ impl midgar::App for GameApp {
         if self.ball.pos.x < 0.0 || self.ball.pos.x > SCREEN_SIZE.x {
             self.ball.pos = SCREEN_SIZE * 0.5;
             self.ball.speed = INITIAL_BALL_SPEED;
-            self.ball.direction = cgmath::vec2(-1.0, 0.0);
+
+            if self.ball.pos.x < 0.0 {
+                self.last_round_winner = Players::Player2;
+                self.player2.score += 1;
+                self.ball.direction = cgmath::vec2(-1.0, 0.0);
+            } else {
+                self.last_round_winner = Players::Player1;
+                self.player1.score += 1;
+                self.ball.direction = cgmath::vec2(1.0, 0.0);
+            }
         }
 
         // Move left paddle
@@ -168,14 +209,4 @@ fn rect_has_point(rect_pos: Vector2<f32>, rect_size: Vector2<f32>, point: Vector
     let bottom = rect_pos.y + rect_size.y / 2.0;
 
     left <= point.x && right >= point.x && top <= point.y && bottom >= point.y
-}
-
-struct Paddle {
-    pos: Vector2<f32>,
-}
-
-struct Ball {
-    pos: Vector2<f32>,
-    direction: Vector2<f32>,
-    speed: f32,
 }
