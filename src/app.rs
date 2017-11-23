@@ -13,9 +13,10 @@ const SCREEN_SIZE: Vector2<f32> = Vector2 {
 };
 
 // Initial ball speed (pixels/second)
-const INITIAL_BALL_SPEED: f32 = 80.0;
+const INITIAL_BALL_SPEED: f32 = 100.0;
 // Paddle speed (pixels/second)
 const PADDLE_SPEED: f32 = 150.0;
+const MAX_BALL_BOUNCE_ANGLE: f32 = 75.0;
 
 enum Players {
     Player1,
@@ -55,6 +56,21 @@ pub struct GameApp {
     separator_tex: TextureRegion,
 }
 
+impl GameApp {
+    // Returns a value, [-1.0, 1.0], representing how far from the paddle center the ball hit.
+    fn did_ball_hit_paddle(&self) -> Option<f32> {
+        if rect_has_point(self.player1.pos, self.left_tex.size().cast::<f32>(), self.ball.pos) && self.ball.direction.x < 0.0 {
+            let distance = self.ball.pos.y - self.player1.pos.y;
+            Some(distance / (self.left_tex.size().y as f32 / 2.0))
+        } else if rect_has_point(self.player2.pos, self.right_tex.size().cast::<f32>(), self.ball.pos) && self.ball.direction.x > 0.0 {
+            let distance = self.ball.pos.y - self.player2.pos.y;
+            Some(distance / (self.right_tex.size().y as f32 / 2.0))
+        } else {
+            None
+        }
+    }
+}
+
 impl midgar::App for GameApp {
     fn create(midgar: &Midgar) -> Self {
         // Load textures
@@ -85,6 +101,9 @@ impl midgar::App for GameApp {
         } else {
             -1.0
         };
+        // TODO: Randomize the ball's starting angle
+        //self.ball.direction.y = rand::random::<f32>() * 2.0 - 1.0;
+        //self.ball.direction = self.ball.direction.normalize();
 
         GameApp {
             player1: Player::new(cgmath::vec2(67.0, 200.0)),
@@ -135,19 +154,17 @@ impl midgar::App for GameApp {
         }
 
         // Flip, change direction, and increase speed when ball touches a paddle
-        if (rect_has_point(self.player1.pos, self.left_tex.size().cast::<f32>(), self.ball.pos) && self.ball.direction.x < 0.0) ||
-           (rect_has_point(self.player2.pos, self.right_tex.size().cast::<f32>(), self.ball.pos) && self.ball.direction.x > 0.0) {
-            self.ball.direction.x = -self.ball.direction.x;
-            self.ball.direction.y = rand::random::<f32>() * 2.0 - 1.0;
-            self.ball.direction = self.ball.direction.normalize();
+        if let Some(distance_ratio) = self.did_ball_hit_paddle() {
+            // Bounce the ball at an angle based on where on the paddle it hit
+            let new_x_multiplier = -self.ball.direction.x.signum();
+            let angle = distance_ratio * MAX_BALL_BOUNCE_ANGLE.to_radians();
+            self.ball.direction.x = angle.cos() * new_x_multiplier;
+            self.ball.direction.y = angle.sin();
             self.ball.speed *= 1.1;
         }
 
         // Check game over
         if self.ball.pos.x < 0.0 || self.ball.pos.x > SCREEN_SIZE.x {
-            self.ball.pos = SCREEN_SIZE * 0.5;
-            self.ball.speed = INITIAL_BALL_SPEED;
-
             if self.ball.pos.x < 0.0 {
                 self.last_round_winner = Players::Player2;
                 self.player2.score += 1;
@@ -157,6 +174,9 @@ impl midgar::App for GameApp {
                 self.player1.score += 1;
                 self.ball.direction = cgmath::vec2(1.0, 0.0);
             }
+
+            self.ball.pos = SCREEN_SIZE * 0.5;
+            self.ball.speed = INITIAL_BALL_SPEED;
         }
 
         // Move left paddle
