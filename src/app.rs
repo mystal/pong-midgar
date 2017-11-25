@@ -84,6 +84,7 @@ pub struct GameApp<'a> {
 
     projection: cgmath::Matrix4<f32>,
     text_projection: cgmath::Matrix4<f32>,
+    camera_pos: cgmath::Vector2<f32>,
 }
 
 impl<'a> GameApp<'a> {
@@ -121,8 +122,8 @@ impl<'a> midgar::App for GameApp<'a> {
             TextureRegion::new(texture)
         };
 
-        let projection = cgmath::ortho(0.0, SCREEN_SIZE.x,
-                                       SCREEN_SIZE.y, 0.0,
+        let projection = cgmath::ortho(-SCREEN_SIZE.x / 2.0, SCREEN_SIZE.x / 2.0,
+                                       SCREEN_SIZE.y / 2.0, -SCREEN_SIZE.y / 2.0,
                                        -1.0, 1.0);
         let text_projection = cgmath::ortho(0.0, SCREEN_SIZE.x,
                                             SCREEN_SIZE.y, 0.0,
@@ -160,6 +161,7 @@ impl<'a> midgar::App for GameApp<'a> {
 
             projection,
             text_projection,
+            camera_pos: SCREEN_SIZE * 0.5,
         }
     }
 
@@ -281,6 +283,14 @@ impl<'a> midgar::App for GameApp<'a> {
         }
 
         // Render!
+        // Update the combined view-projection matrix!
+        let camera_pos = self.camera_pos.extend(0.0);
+        let view = cgmath::Matrix4::look_at(cgmath::Point3::from_vec(camera_pos),
+                                            cgmath::Point3::new(0.0, 0.0, -1.0) + camera_pos,
+                                            cgmath::vec3(0.0, 1.0, 0.0));
+        let combined = self.projection * view;
+        self.sprite.set_projection_matrix(combined);
+
         let mut target = midgar.graphics().display().draw();
 
         target.clear_color(0.0, 0.0, 0.0, 1.0);
