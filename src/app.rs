@@ -33,6 +33,7 @@ const INITIAL_PLAYER2_POS: Vector2<f32> = Vector2 {
 // Paddle speed (pixels/second)
 const PADDLE_SPEED: f32 = 150.0;
 const MAX_BALL_BOUNCE_ANGLE: f32 = 75.0;
+const WINNING_SCORE: u8 = 11;
 
 enum Players {
     Player1,
@@ -59,7 +60,15 @@ struct Ball {
     speed: f32,
 }
 
+pub enum GameState {
+    Ready,
+    Playing,
+    End,
+}
+
 pub struct GameApp<'a> {
+    state: GameState,
+
     player1: Player,
     player2: Player,
     ball: Ball,
@@ -130,6 +139,8 @@ impl<'a> midgar::App for GameApp<'a> {
         //self.ball.direction = self.ball.direction.normalize();
 
         GameApp {
+            state: GameState::Ready,
+
             player1: Player::new(INITIAL_PLAYER1_POS),
             player2: Player::new(INITIAL_PLAYER2_POS),
             ball: Ball {
@@ -171,7 +182,41 @@ impl<'a> midgar::App for GameApp<'a> {
             midgar.graphics_mut().set_size(SCREEN_SIZE.x as u32 * scale, SCREEN_SIZE.y as u32 * scale);
         }
 
-        let dt = midgar.time().delta_time() as f32;
+        let (message, dt) = match self.state {
+            GameState::Ready => {
+                if midgar.input().was_key_pressed(KeyCode::Space) {
+                    self.state = GameState::Playing;
+                }
+                ("Press Space to play!", 0.0)
+            },
+            GameState::Playing => {
+                if midgar.input().was_key_pressed(KeyCode::Space) {
+                    self.state = GameState::Playing;
+                }
+                ("", midgar.time().delta_time() as f32)
+            },
+            GameState::End => {
+                // TODO: Don't check for player scoring!
+                if midgar.input().was_key_pressed(KeyCode::Space) {
+                    self.state = GameState::Playing;
+
+                    // Reset the ball
+                    self.ball.pos = INITIAL_BALL_POS;
+                    self.ball.speed = INITIAL_BALL_SPEED;
+
+                    // Reset the players
+                    self.player1.pos = INITIAL_PLAYER1_POS;
+                    self.player1.score = 0;
+                    self.player2.pos = INITIAL_PLAYER2_POS;
+                    self.player2.score = 0;
+                }
+                let message = match self.last_round_winner {
+                    Players::Player1 => "Player 1 wins!\nPress Space to play again!",
+                    Players::Player2 => "Player 2 wins!\nPress Space to play again!",
+                };
+                (message, 0.0)
+            },
+        };
 
         // Integrate new ball position
         self.ball.pos += self.ball.direction * self.ball.speed * dt;
@@ -192,8 +237,9 @@ impl<'a> midgar::App for GameApp<'a> {
             self.ball.speed *= 1.1;
         }
 
-        // Check game over
-        if self.ball.pos.x < 0.0 || self.ball.pos.x > SCREEN_SIZE.x {
+        // Check if a player scored
+        // TODO: Remove this hacky dt check!
+        if dt > 0.0 && (self.ball.pos.x < 0.0 || self.ball.pos.x > SCREEN_SIZE.x) {
             if self.ball.pos.x < 0.0 {
                 self.last_round_winner = Players::Player2;
                 self.player2.score += 1;
@@ -204,8 +250,18 @@ impl<'a> midgar::App for GameApp<'a> {
                 self.ball.direction = cgmath::vec2(1.0, 0.0);
             }
 
-            self.ball.pos = INITIAL_BALL_POS;
-            self.ball.speed = INITIAL_BALL_SPEED;
+            // Check game over
+            if self.player1.score >= WINNING_SCORE || self.player2.score >= WINNING_SCORE {
+                self.state = GameState::End;
+            } else {
+                // Reset the ball
+                self.ball.pos = INITIAL_BALL_POS;
+                self.ball.speed = INITIAL_BALL_SPEED;
+
+                // Reset the players
+                self.player1.pos = INITIAL_PLAYER1_POS;
+                self.player2.pos = INITIAL_PLAYER2_POS;
+            }
         }
 
         // Move left paddle
@@ -251,6 +307,12 @@ impl<'a> midgar::App for GameApp<'a> {
                                      20, 160.0, 30.0, 300, &self.text_projection, &mut target);
         self.text_renderer.draw_text(&format!("{:02}", self.player2.score), &self.font, [1.0, 1.0, 1.0],
                                      20, 480.0, 30.0, 300, &self.text_projection, &mut target);
+
+        // Draw the message
+        if !message.is_empty() {
+            self.text_renderer.draw_text(message, &self.font, [1.0, 1.0, 1.0],
+                                         20, 220.0, 140.0, 300, &self.text_projection, &mut target);
+        }
 
         target.finish()
             .expect("target.finish() failed");
