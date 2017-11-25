@@ -4,6 +4,7 @@ use cgmath::{self, Vector2};
 use cgmath::prelude::*;
 use midgar::{self, KeyCode, Midgar, Surface};
 use midgar::graphics::sprite::{DrawTexture, MagnifySamplerFilter, SpriteDrawParams, SpriteRenderer};
+use midgar::graphics::text::{self, Font, TextRenderer};
 use midgar::graphics::texture::TextureRegion;
 use rand;
 
@@ -14,6 +15,21 @@ const SCREEN_SIZE: Vector2<f32> = Vector2 {
 
 // Initial ball speed (pixels/second)
 const INITIAL_BALL_SPEED: f32 = 100.0;
+// One day const fn will be stable...
+//const INITIAL_BALL_POS: Vector2<f32> = SCREEN_SIZE * 0.5;
+const INITIAL_BALL_POS: Vector2<f32> = Vector2 {
+    x: 320.0,
+    y: 200.0,
+};
+
+const INITIAL_PLAYER1_POS: Vector2<f32> = Vector2 {
+    x: 67.0,
+    y: 200.0,
+};
+const INITIAL_PLAYER2_POS: Vector2<f32> = Vector2 {
+    x: 573.0,
+    y: 200.0,
+};
 // Paddle speed (pixels/second)
 const PADDLE_SPEED: f32 = 150.0;
 const MAX_BALL_BOUNCE_ANGLE: f32 = 75.0;
@@ -43,20 +59,25 @@ struct Ball {
     speed: f32,
 }
 
-pub struct GameApp {
+pub struct GameApp<'a> {
     player1: Player,
     player2: Player,
     ball: Ball,
     last_round_winner: Players,
 
     sprite: SpriteRenderer,
+    text_renderer: TextRenderer,
     left_tex: TextureRegion,
     right_tex: TextureRegion,
     ball_tex: TextureRegion,
     separator_tex: TextureRegion,
+    font: Font<'a>,
+
+    projection: cgmath::Matrix4<f32>,
+    text_projection: cgmath::Matrix4<f32>,
 }
 
-impl GameApp {
+impl<'a> GameApp<'a> {
     // Returns a value, [-1.0, 1.0], representing how far from the paddle center the ball hit.
     fn did_ball_hit_paddle(&self) -> Option<f32> {
         if rect_has_point(self.player1.pos, self.left_tex.size().cast::<f32>(), self.ball.pos) && self.ball.direction.x < 0.0 {
@@ -71,7 +92,7 @@ impl GameApp {
     }
 }
 
-impl midgar::App for GameApp {
+impl<'a> midgar::App for GameApp<'a> {
     fn create(midgar: &Midgar) -> Self {
         // Load textures
         let left_tex = {
@@ -94,6 +115,9 @@ impl midgar::App for GameApp {
         let projection = cgmath::ortho(0.0, SCREEN_SIZE.x,
                                        SCREEN_SIZE.y, 0.0,
                                        -1.0, 1.0);
+        let text_projection = cgmath::ortho(0.0, SCREEN_SIZE.x,
+                                            SCREEN_SIZE.y, 0.0,
+                                            -1.0, 1.0);
 
         // Randomize ball's starting direction
         let ball_x_dir = if rand::random() {
@@ -106,20 +130,25 @@ impl midgar::App for GameApp {
         //self.ball.direction = self.ball.direction.normalize();
 
         GameApp {
-            player1: Player::new(cgmath::vec2(67.0, 200.0)),
-            player2: Player::new(cgmath::vec2(577.0, 200.0)),
+            player1: Player::new(INITIAL_PLAYER1_POS),
+            player2: Player::new(INITIAL_PLAYER2_POS),
             ball: Ball {
-                pos: cgmath::vec2(320.0, 200.0),
+                pos: INITIAL_BALL_POS,
                 direction: cgmath::vec2(ball_x_dir, 0.0),
                 speed: INITIAL_BALL_SPEED,
             },
             last_round_winner: Players::Player1,
 
             sprite: SpriteRenderer::new(midgar.graphics().display(), projection),
+            text_renderer: TextRenderer::new(midgar.graphics().display()),
             left_tex,
             right_tex,
             ball_tex,
             separator_tex,
+            font: text::load_font_from_path("assets/VeraMono.ttf"),
+
+            projection,
+            text_projection,
         }
     }
 
@@ -175,7 +204,7 @@ impl midgar::App for GameApp {
                 self.ball.direction = cgmath::vec2(1.0, 0.0);
             }
 
-            self.ball.pos = SCREEN_SIZE * 0.5;
+            self.ball.pos = INITIAL_BALL_POS;
             self.ball.speed = INITIAL_BALL_SPEED;
         }
 
@@ -216,6 +245,12 @@ impl midgar::App for GameApp {
         // Draw ball.
         self.sprite.draw(&self.ball_tex.draw(self.ball.pos.x, self.ball.pos.y),
                          draw_params, &mut target);
+
+        // Draw each player's score.
+        self.text_renderer.draw_text(&format!("{:02}", self.player1.score), &self.font, [1.0, 1.0, 1.0],
+                                     20, 160.0, 30.0, 300, &self.text_projection, &mut target);
+        self.text_renderer.draw_text(&format!("{:02}", self.player2.score), &self.font, [1.0, 1.0, 1.0],
+                                     20, 480.0, 30.0, 300, &self.text_projection, &mut target);
 
         target.finish()
             .expect("target.finish() failed");
