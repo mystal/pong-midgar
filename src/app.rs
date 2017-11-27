@@ -325,8 +325,12 @@ impl<'a> midgar::App for GameApp<'a> {
         self.camera.update_trauma(dt);
         let shake = self.camera.trauma.powi(2);
         // TODO: Use Perlin noise instead of random numbers.
-        let shake_offset = shake * cgmath::vec2(CAMERA_SHAKE_MAX_OFFSET * (rand::random::<f32>() * 2.0 - 1.0),
-                                                CAMERA_SHAKE_MAX_OFFSET * (rand::random::<f32>() * 2.0 - 1.0));
+        let shake_offset = if shake > 0.0 {
+            shake * cgmath::vec2(CAMERA_SHAKE_MAX_OFFSET * (rand::random::<f32>() * 2.0 - 1.0),
+                                 CAMERA_SHAKE_MAX_OFFSET * (rand::random::<f32>() * 2.0 - 1.0))
+        } else {
+            cgmath::vec2(0.0, 0.0)
+        };
         // TODO: Add shake rotation.
 
         // Render!
