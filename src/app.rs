@@ -35,6 +35,9 @@ const PADDLE_SPEED: f32 = 150.0;
 const MAX_BALL_BOUNCE_ANGLE: f32 = 75.0;
 const WINNING_SCORE: u8 = 11;
 
+const CAMERA_SHAKE_MAX_ANGLE: f32 = 15.0;
+const CAMERA_SHAKE_MAX_OFFSET: f32 = 30.0;
+
 enum Players {
     Player1,
     Player2,
@@ -60,7 +63,35 @@ struct Ball {
     speed: f32,
 }
 
-pub enum GameState {
+struct Camera {
+    pos: Vector2<f32>,
+    angle: f32,
+    // The base magnitude value for camera shake calculations
+    trauma: f32,
+}
+
+impl Camera {
+    fn new(pos: Vector2<f32>) -> Self {
+        Camera {
+            pos,
+            angle: 0.0,
+            trauma: 0.0,
+        }
+    }
+
+    fn add_trauma(&mut self, percent: f32) {
+        // TODO: Warn if percent is negative?
+        self.trauma += percent;
+        self.trauma = f32::min(self.trauma, 1.0);
+    }
+
+    fn update_trauma(&mut self, dt: f32) {
+        self.trauma -= 0.5 * dt;
+        self.trauma = f32::max(self.trauma, 0.0);
+    }
+}
+
+enum GameState {
     Ready,
     Playing,
     End,
@@ -84,7 +115,7 @@ pub struct GameApp<'a> {
 
     projection: cgmath::Matrix4<f32>,
     text_projection: cgmath::Matrix4<f32>,
-    camera_pos: cgmath::Vector2<f32>,
+    camera: Camera,
 }
 
 impl<'a> GameApp<'a> {
@@ -161,7 +192,7 @@ impl<'a> midgar::App for GameApp<'a> {
 
             projection,
             text_projection,
-            camera_pos: SCREEN_SIZE * 0.5,
+            camera: Camera::new(SCREEN_SIZE * 0.5),
         }
     }
 
@@ -182,6 +213,11 @@ impl<'a> midgar::App for GameApp<'a> {
         } else if midgar.input().was_key_pressed(KeyCode::Num3) {
             let scale = 3;
             midgar.graphics_mut().set_size(SCREEN_SIZE.x as u32 * scale, SCREEN_SIZE.y as u32 * scale);
+        }
+
+        // FIXME: Remove this debug feature.
+        if midgar.input().was_key_pressed(KeyCode::Tab) {
+            self.camera.add_trauma(0.5);
         }
 
         let (message, dt) = match self.state {
@@ -252,6 +288,9 @@ impl<'a> midgar::App for GameApp<'a> {
                 self.ball.direction = cgmath::vec2(1.0, 0.0);
             }
 
+            // Camera shake!
+            self.camera.add_trauma(0.5);
+
             // Check game over
             if self.player1.score >= WINNING_SCORE || self.player2.score >= WINNING_SCORE {
                 self.state = GameState::End;
@@ -282,9 +321,17 @@ impl<'a> midgar::App for GameApp<'a> {
             self.player2.pos.y += PADDLE_SPEED * dt;
         }
 
+        // Update camera shake!
+        self.camera.update_trauma(dt);
+        let shake = self.camera.trauma.powi(2);
+        // TODO: Use Perlin noise instead of random numbers.
+        let shake_offset = shake * cgmath::vec2(CAMERA_SHAKE_MAX_OFFSET * (rand::random::<f32>() * 2.0 - 1.0),
+                                                CAMERA_SHAKE_MAX_OFFSET * (rand::random::<f32>() * 2.0 - 1.0));
+        // TODO: Add shake rotation.
+
         // Render!
         // Update the combined view-projection matrix!
-        let camera_pos = self.camera_pos.extend(0.0);
+        let camera_pos = (self.camera.pos + shake_offset).extend(0.0);
         let view = cgmath::Matrix4::look_at(cgmath::Point3::from_vec(camera_pos),
                                             cgmath::Point3::new(0.0, 0.0, -1.0) + camera_pos,
                                             cgmath::vec3(0.0, 1.0, 0.0));
