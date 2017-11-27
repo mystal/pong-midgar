@@ -6,6 +6,7 @@ use midgar::{self, KeyCode, Midgar, Surface};
 use midgar::graphics::sprite::{DrawTexture, MagnifySamplerFilter, SpriteDrawParams, SpriteRenderer};
 use midgar::graphics::text::{self, Font, TextRenderer};
 use midgar::graphics::texture::TextureRegion;
+use noise::{NoiseModule, Perlin, Seedable};
 use rand;
 
 const SCREEN_SIZE: Vector2<f32> = Vector2 {
@@ -66,16 +67,24 @@ struct Ball {
 struct Camera {
     pos: Vector2<f32>,
     angle: f32,
+
     // The base magnitude value for camera shake calculations
     trauma: f32,
+    noise_x: Perlin,
+    noise_y: Perlin,
 }
 
 impl Camera {
     fn new(pos: Vector2<f32>) -> Self {
+        let seed = rand::random();
+
         Camera {
             pos,
             angle: 0.0,
+
             trauma: 0.0,
+            noise_x: Perlin::new().set_seed(seed),
+            noise_y: Perlin::new().set_seed(seed + 1),
         }
     }
 
@@ -98,6 +107,7 @@ enum GameState {
 }
 
 pub struct GameApp<'a> {
+    game_time: f32,
     state: GameState,
 
     player1: Player,
@@ -171,6 +181,7 @@ impl<'a> midgar::App for GameApp<'a> {
         //self.ball.direction = self.ball.direction.normalize();
 
         GameApp {
+            game_time: 0.0,
             state: GameState::Ready,
 
             player1: Player::new(INITIAL_PLAYER1_POS),
@@ -220,6 +231,8 @@ impl<'a> midgar::App for GameApp<'a> {
             self.camera.add_trauma(0.5);
         }
 
+        let dt = midgar.time().delta_time() as f32;
+        self.game_time += dt;
         let (message, dt) = match self.state {
             GameState::Ready => {
                 if midgar.input().was_key_pressed(KeyCode::Space) {
@@ -231,7 +244,7 @@ impl<'a> midgar::App for GameApp<'a> {
                 if midgar.input().was_key_pressed(KeyCode::Space) {
                     self.state = GameState::Playing;
                 }
-                ("", midgar.time().delta_time() as f32)
+                ("", dt)
             },
             GameState::End => {
                 // TODO: Don't check for player scoring!
@@ -324,12 +337,11 @@ impl<'a> midgar::App for GameApp<'a> {
         // Update camera shake!
         self.camera.update_trauma(dt);
         let shake = self.camera.trauma.powi(2);
-        // TODO: Use Perlin noise instead of random numbers.
         let shake_offset = if shake > 0.0 {
-            shake * cgmath::vec2(CAMERA_SHAKE_MAX_OFFSET * (rand::random::<f32>() * 2.0 - 1.0),
-                                 CAMERA_SHAKE_MAX_OFFSET * (rand::random::<f32>() * 2.0 - 1.0))
+            shake * cgmath::vec2(CAMERA_SHAKE_MAX_OFFSET * self.camera.noise_x.get([3.0 * self.game_time, 3.0 * self.game_time]),
+                                 CAMERA_SHAKE_MAX_OFFSET * self.camera.noise_y.get([3.0 * self.game_time, 3.0 * self.game_time]))
         } else {
-            cgmath::vec2(0.0, 0.0)
+            Vector2::zero()
         };
         // TODO: Add shake rotation.
 
